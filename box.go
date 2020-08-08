@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -92,16 +94,27 @@ type BoxDecoder func(r io.Reader) (Box, error)
 
 // DecodeBox decodes a box
 func DecodeBox(h BoxHeader, r io.Reader) (Box, error) {
+
 	d := decoders[h.Type]
+	flag := false
 	if d == nil {
-		log.Printf("Error while decoding %s : unknown box type", h.Type)
-		return nil, ErrUnknownBoxType
+		d = UnknownDecode
+		flag = true
 	}
+
 	b, err := d(io.LimitReader(r, int64(h.Size-BoxHeaderSize)))
 	if err != nil {
-		log.Printf("Error while decoding %s : %s", h.Type, err)
-		return nil, err
+		//TODO panic()
+		return nil, xerrors.Errorf("reader error: %w", err)
 	}
+
+	if flag {
+		box := b.(*UnknownBox)
+		box.setHeader(h)
+
+		log.Printf("UnknownBox(%s),Size :%d\n", h.Type, h.Size)
+	}
+
 	return b, nil
 }
 

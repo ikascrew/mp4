@@ -1,6 +1,11 @@
 package mp4
 
-import "io"
+import (
+	"errors"
+	"io"
+
+	"golang.org/x/xerrors"
+)
 
 // A MPEG-4 media
 //
@@ -23,16 +28,21 @@ func Decode(r io.Reader) (*MP4, error) {
 	v := &MP4{
 		boxes: []Box{},
 	}
-LoopBoxes:
+
 	for {
 		h, err := DecodeHeader(r)
 		if err != nil {
-			return nil, err
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, xerrors.Errorf("decode header: %w", err)
 		}
+
 		box, err := DecodeBox(h, r)
 		if err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("decode box: %w", err)
 		}
+
 		v.boxes = append(v.boxes, box)
 		switch h.Type {
 		case "ftyp":
@@ -42,7 +52,6 @@ LoopBoxes:
 		case "mdat":
 			v.Mdat = box.(*MdatBox)
 			v.Mdat.ContentSize = h.Size - BoxHeaderSize
-			break LoopBoxes
 		}
 	}
 	return v, nil
